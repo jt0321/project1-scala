@@ -2,7 +2,7 @@
 
 ## A simple job for Spark... with Scala
 
-A revision of [project1](https://github.com/200413-java-spark/project-1-jeremy) in Scala
+A revision of [project1](https://github.com/200413-java-spark/project-1-jeremy) in Scala  
 TODO: persistence with SQL (Slick); spec
 
 This project presents a simple analysis of crimes in Chicago in 2015 using Apache Spark.
