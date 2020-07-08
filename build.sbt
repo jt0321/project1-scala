@@ -9,7 +9,7 @@ lazy val root = (project in file(".")).
       scalaVersion := "2.12.11"
     )),
     name := "project1",
-    version := "0.0.1",
+    version := "0.0.2",
 
     javacOptions ++= Seq("-source", "1.8", "-target", "1.8"),
     //javaOptions ++= Seq("-Xms512M", "-Xmx2048M", "-XX:MaxPermSize=2048M", "-XX:+CMSClassUnloadingEnabled"),
@@ -22,7 +22,7 @@ lazy val root = (project in file(".")).
       import org.apache.spark.sql.SparkSession
       import org.apache.spark.sql.functions._
       val spark = SparkSession.builder()
-       .master("local[4]")
+       .master("local[*]")
        .appName("spark-shell")
        .getOrCreate()
       import spark.implicits._

@@ -43,16 +43,6 @@ object CsvParser {
       case _ => "Invalid results"
     }
 
-  /** Returns expected result for SparkActor
-    *
-    * @param result
-    * @return
-    */
-  def asCounts(result: Counts): LinkedHashMap[String, Long] =
-    result match {
-      case Count2(counts) => counts.getOrElse(LinkedHashMap()).map { case (lst, lng) => (lst.mkString(", "), lng) }
-      case Count(counts) => counts.getOrElse(LinkedHashMap())
-    }
 }
 
 /** Reads in a csv file, parses header to allow for various operations
@@ -108,11 +98,17 @@ class CsvParser(val csvFile: String) extends SparkSessionWrapper {
     * @param category1
     * @param category2
     */
-  def getCounts(categories: Seq[String]): Counts =
-    categories.length match {
+  def getCounts(categories: Seq[String]): LinkedHashMap[String, Long] = {
+    val results = categories.length match {
       case 1 => getCount(categories(0))
-      case 2 => get2Count(categories(0), categories(1))
+      case _ => get2Count(categories(0), categories(1))
     }
+    val counts = results match {
+      case Count(results) => results.getOrElse(LinkedHashMap())
+      case Count2(results) => results.getOrElse(LinkedHashMap()).map { case (lst, lng) => (lst.mkString(", "), lng) }
+    }
+    counts
+  }
 }
 
 object SimpleJob {

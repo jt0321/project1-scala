@@ -12,6 +12,7 @@ object SparkActor {
   sealed trait Command // get categories, get count, get counts, save to db
   final case class GetAllCategories(replyTo: ActorRef[String]) extends Command
   final case class CalculateCounts(replyTo: ActorRef[String], cats: Seq[String]) extends Command
+  final case class GetCalculated(replyTo: ActorRef[String]) extends Command
   final case class SaveCounts(replyTo: ActorRef[ActionPerformed]) extends Command
 
   final case class Result(categories: String, counts: LinkedHashMap[String, Long])
@@ -35,14 +36,22 @@ class SparkActor(csvParser: CsvParser, context: ActorContext[SparkActor.Command]
         replyTo ! allCategories
         Behaviors.same
       case CalculateCounts(replyTo, cats) =>
-        val catsStr = cats.sorted.mkString("_")
+        val catsStr = cats.sorted.map(_.replace(" ", "_")).mkString("_")
         val result = results.find(_.categories == catsStr) match {
           case Some(i) => i
-          case None => Result(catsStr, CsvParser.asCounts(csvParser.getCounts(cats)))
+          case None => Result(catsStr, csvParser.getCounts(cats))
         }
-        val countInstance = CsvParser.Count(Option(result.counts))
-        replyTo ! cats.sorted.mkString(", ") + "\n" + CsvParser.asString(countInstance) + "\n"
-        tasks(results + result)
+        if (result.counts.isEmpty) {
+          replyTo ! "Invalid category"
+          Behaviors.same
+        } else {
+          val countInstance = CsvParser.Count(Option(result.counts))
+          replyTo ! cats.sorted.mkString(" x ") + "\n" + CsvParser.asString(countInstance) + "\n"
+          tasks(results + result)
+        }
+      case GetCalculated(replyTo) =>
+        replyTo ! "Performed counts for " + results.map(_.categories).mkString(", ") + "\n"
+        Behaviors.same
       case SaveCounts(replyTo) =>
         replyTo ! ActionPerformed("BLAHBLAH")
         Behaviors.same
