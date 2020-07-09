@@ -33,8 +33,8 @@ lazy val root = (project in file(".")).
     coverageHighlighting := true,
 
     libraryDependencies ++= Seq(
-      
-      "com.typesafe.slick" %% "slick" % "3.3.1",
+      "com.h2database" % "h2"                           % "1.4.192",
+      "com.typesafe.slick" %% "slick"                   % "3.3.1",
       "com.typesafe.akka" %% "akka-http"                % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
       "com.typesafe.akka" %% "akka-stream"              % akkaVersion,

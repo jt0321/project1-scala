@@ -13,6 +13,9 @@ import akka.http.scaladsl.model._
 import akka.stream.Materializer
 import scala.concurrent.Future
 
+/** Http server to respond to queries for simple Spark analyses using actor system
+  * 
+  */
 object SparkServer {
   def apply(): Behavior[Nothing] =
     Behaviors.setup[Nothing] { context =>
@@ -21,15 +24,18 @@ object SparkServer {
 }
 
 class SparkServer(context: ActorContext[Nothing]) extends AbstractBehavior[Nothing](context) {
+  val sqlActor = context.spawn(SqlActor(), name = "SQLactor" + scala.util.Random.nextInt(9999))
+  context.watch(sqlActor)
+  
   implicit val CrimesParser = new CsvParser("Crimes2015.csv")
   val sparkActor = context.spawn(SparkActor(), "SparkActor")
   context.watch(sparkActor)
-
+  
   //implicit val system = akka.actor.ActorSystem()
   //implicit val executionContext = system.dispatcher
   implicit val system = context.system
   implicit val mat = Materializer(context)
-  val routes = new SparkRoutes("/spark", sparkActor)
+  val routes = new SparkRoutes("/spark", sparkActor, sqlActor)
 
   sys.addShutdownHook(println("Server terminated!"))
   httpServer(routes, system)
@@ -59,6 +65,9 @@ class SparkServer(context: ActorContext[Nothing]) extends AbstractBehavior[Nothi
   }
 }
 
+/** Bootstrap server with root user actor
+  * 
+  */
 object SimpleServer extends App {
   ActorSystem[Nothing](SparkServer(), "Project1HttpServer")
 }

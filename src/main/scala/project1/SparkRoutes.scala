@@ -1,45 +1,41 @@
 package project1
 
-import SparkActor._
-
-import akka.actor.typed.scaladsl.AskPattern._
 import akka.actor.typed.ActorRef
 import akka.actor.typed.ActorSystem
+import akka.actor.typed.scaladsl.AskPattern._
 import akka.http.scaladsl.Http
 import akka.http.scaladsl.model.HttpMethods._
 import akka.http.scaladsl.model._
 import akka.stream.Materializer
-import akka.util.Timeout
 
-import java.time.Duration
 import scala.concurrent.Await
 import scala.concurrent.Future
-import scala.util.Failure
-import scala.util.Success
 
 /** Entry point to route Spark job requests
   *
   * @param csvParser
   * @param mat
   */
-class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command])(implicit
+class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command], sqlActor: ActorRef[SqlActor.Command])(
+    implicit
     system: ActorSystem[_],
     mat: Materializer
 ) {
+  import SparkActor._
 
-  implicit val timeout = Timeout.create(Duration.ofSeconds(30))
-  val timeOut = scala.concurrent.duration.Duration("30 s")
+  implicit val timeout = akka.util.Timeout.create(java.time.Duration.ofDays(30))
+  //val timeOut = scala.concurrent.duration.Duration("30 s")
   implicit val ec = system.executionContext
   //implicit val scheduler = system.scheduler
 
   def getAllCategories(): Future[String] =
     sparkActor.ask(GetAllCategories)
   def calculateCounts(cats: Seq[String]): Future[String] =
-    sparkActor.ask(SparkActor.CalculateCounts(_, cats))
+    sparkActor.ask(CalculateCounts(_, cats))
   def getCalculated(): Future[String] =
-    sparkActor.ask(SparkActor.GetCalculated)
-  def saveCounts(): Future[ActionPerformed] =
-    sparkActor.ask(SaveCounts)
+    sparkActor.ask(GetCalculated)
+  def saveCounts(sqlActor: ActorRef[SqlActor.Command]): Future[ActionPerformed] =
+    sparkActor.ask(SaveCounts(_, sqlActor))
 
   /** Http handler for spark job
     *
@@ -64,23 +60,25 @@ class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command])(imp
         HttpResponse(404, entity = "POST failed: Unknown resource! \n")
 
       // save option
-      if (uri.query().getOrElse("save", "false") == "true")
-        println("Sending results to be saved... oops, not implemented")
-      else
-        println("Not saving results!")
-
+      if (uri.query().getOrElse("save", "false") == "true") {
+        // println("Sending results to be saved... oops, not implemented")
+        system.log.info("Asking saveCounts")
+        val future = saveCounts(sqlActor)
+        val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[ActionPerformed]
+        HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
+      }
       // spark jobs
       uri.query().getAll("cat") match {
         case List(cat1, cat2) =>
           val future = calculateCounts(Seq(cat1, cat2))
-          val result = Await.result(future, timeOut).asInstanceOf[String]
+          val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
           HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
         case List(cat1) =>
           val future = calculateCounts(Seq(cat1))
-          val result = Await.result(future, timeOut).asInstanceOf[String]
+          val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
           HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
         case Nil =>
-          HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"No counts requested! \n"))
+          HttpResponse(404, entity = "No counts requested! \n")
       }
 
     // important to drain incoming HTTP Entity stream
@@ -96,7 +94,7 @@ class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command])(imp
     */
   def sparkResponse(ask: () => Future[String]): HttpResponse = {
     val future = ask()
-    val result = Await.result(future, timeOut).asInstanceOf[String]
+    val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
     HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
   }
 
