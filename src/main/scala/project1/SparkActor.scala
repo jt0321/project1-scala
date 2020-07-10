@@ -38,7 +38,6 @@ class SparkActor(
   import SqlActor.SaveToDb
 
   implicit val timeout = akka.util.Timeout.create(java.time.Duration.ofDays(30))
-  val timeOut = scala.concurrent.duration.Duration.Inf
   implicit val ec = context.system.executionContext
   implicit val scheduler = context.system.scheduler
 
@@ -68,7 +67,7 @@ class SparkActor(
         Behaviors.same
       case SaveCounts(replyTo, sqlActor) =>
         val sqlFuture: Future[String] = sqlActor.ask(SaveToDb(_, results))
-        val sqlResult = Await.result(sqlFuture, timeOut).asInstanceOf[String]
+        val sqlResult = Await.result(sqlFuture, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
         replyTo ! ActionPerformed(sqlResult)
         Behaviors.same
     }

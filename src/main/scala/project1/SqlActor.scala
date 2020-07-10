@@ -1,16 +1,17 @@
 package project1
 
+import scalikejdbc._
+import scalikejdbc.config._
+
 import akka.actor.typed.ActorRef
 import akka.actor.typed.Behavior
 import akka.actor.typed.scaladsl.ActorContext
 import akka.actor.typed.scaladsl.Behaviors
-import slick.jdbc.H2Profile.api._
 
 import scala.collection.immutable
 import scala.collection.mutable.LinkedHashMap
 import scala.concurrent.Await
 import scala.concurrent.Future
-import scala.collection.mutable
 
 import SparkActor.Result
 
@@ -18,7 +19,7 @@ object SqlActor {
   sealed trait Command
   case class SaveToDb(replyTo: ActorRef[String], results: Set[Result]) extends Command
 
-  val db = Database.forConfig("h2mem1")
+  //val db = Database.forConfig("h2mem1")
 
   def apply(): Behavior[Command] =
     Behaviors.setup { context =>
@@ -30,8 +31,9 @@ class SqlActor(context: ActorContext[SqlActor.Command]) {
   import SqlActor._
   implicit val ec = context.system.executionContext
 
-  context.system.log.info("DB STARTED!")
-  context.system.log.info(db.toString())
+  DBs.setupAll()
+  implicit val session = AutoSession
+  context.system.log.info("DB started!")
 
   def operations(results: Set[Result]): Behavior[Command] =
     Behaviors.receiveMessage {
@@ -42,59 +44,42 @@ class SqlActor(context: ActorContext[SqlActor.Command]) {
         operations(results)
     }
 
-  def writeTable(
-      category: String,
-      counts: LinkedHashMap[String, Long]
-  ): DBIO[Unit] = {
-    // (String, DBIOAction[Int, NoStream, Effect.All]) = {
-    context.system.log.info("Creating table for " + category)
-    def createTable(category: String): DBIO[Int] = sqlu"""CREATE TABLE ${category} (
-      ${category}_category VARCHAR NOT NULL,
-      ${category}_count BIGINT)
-      """
-    def insert(table: String, c: (String, Long)): DBIO[Int] =
-      sqlu"INSERT INTO ${table} VALUES ('${c._1}', ${c._2})"
-
-    def insertValues(table: String, counts: LinkedHashMap[String, Long]): DBIO[Int] = {
-      val inserts: Seq[DBIO[Int]] = counts.map(insert(table, _)).toSeq
-      val combined: DBIO[Seq[Int]] = DBIO.sequence(inserts)
-      combined.map(_.sum)
-    }
-
-    // return numer of rows written
-    //(category, createTable.zipWith(insertValues)((a, b) => b))
+  def writeTable(category: String, counts: LinkedHashMap[String, Long]) = {
     val catName = category.replace(" ", "_")
+    val catName_category = catName+"_category"
+    val catName_count = catName+"_count"
+    val catName_table = sqls"${catName}"
+    val catName_column1 = sqls"${catName_category}"
+    val catName_column2 = sqls"${catName_count}"
+    context.system.log.info(catName_table)
+    context.system.log.info(catName_column1)
+    context.system.log.info(catName_column2)
+    val createTable = sql"""CREATE TABLE ${catName_table} (
+      ${catName_column1} VARCHAR NOT NULL,
+      ${catName_column2} BIGINT)
+      """
 
-    context.system.log.info(createTable(catName).toString())
-    context.system.log.info(insertValues(catName, counts).toString())
-    DBIO.seq(createTable(catName), insertValues(catName, counts))
+    val params: Seq[Seq[Any]] = counts.map { case (str: String, long: Long) => Seq(str, long) } toSeq
+    val insertCounts = sql"""insert into {$catName} values (?, ?)""".batch(params: _*)
+    context.system.log.info(insertCounts.toString())
+    (createTable, insertCounts)
   }
 
   def writeAllTables(results: Set[Result]): String = {
-    try {
-      context.system.log.info("Some crazy shit")
-      /*val allTables = results.map(result => writeTable(result.categories, result.counts)).toSeq
-      context.system.log.info(allTables.mkString(", "))
-      val allCats = allTables.map(_._1)
-      context.system.log.info(allCats.mkString(", "))
-      // val allQueries = DBIO.sequence(allTables.map(_._2))
-      val allQueries: DBIO[Unit] = DBIO.seq(allTables.map(_._2): _*)
-      context.system.log.info(allQueries.toString())
-      // DBIO.fold[Int, Effect.All](allTables.map(_._2), 0)((a, b) => Seq(a) :+ Seq(b))
-       */
-      val allQueries = writeTable(results.head.categories, results.head.counts)
-      val f: Future[_] = {
-        // val allQueries: DBIO[Int] = DBIO.seq(allTables: _*)
-        db.run(allQueries)
+    val writeCats = results.map(_.categories)
+    val writeTables = results.map(result => writeTable(result.categories, result.counts)).toSeq
+
+    val writeCounts = DB localTx { implicit session =>
+      writeTables map {
+        case (createTable, insertCounts) =>
+          createTable.execute.apply()
+          insertCounts.apply().sum
       }
-      context.system.log.info("Are we still here?")
-      //val sqlR =
-      Await.result(f, scala.concurrent.duration.Duration.Inf)
-      // val rMaps = allCats.zip(sqlR)
-      // val resultStr = rMaps.map { case (table, inserted) => s"Inserted ${inserted} rows into table ${table}" }.mkString("\n")
-      val resultStr = "Insertion completed!"
-      context.system.log.info(resultStr)
-      resultStr
-    } finally db.close
+    }
+    writeCats
+      .zip(writeCounts)
+      .map { case (category, count) => s"${count} records written for ${category}!" }
+      .mkString("\n")
   }
+
 }

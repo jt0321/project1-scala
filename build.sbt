@@ -18,6 +18,25 @@ lazy val root = (project in file(".")).
     fork := true,
     cancelable in Global := true,
 
+    libraryDependencies ++= Seq(
+      "org.apache.spark" %% "spark-sql"                 % sparkVersion % Provided,
+
+      "com.h2database" % "h2"                           % "1.4.192",
+      "org.scalikejdbc" %% "scalikejdbc"                % "3.4.+",
+      "org.scalikejdbc" %% "scalikejdbc-config"         % "3.4.+",
+      "com.typesafe.akka" %% "akka-http"                % akkaHttpVersion,
+      "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
+      "com.typesafe.akka" %% "akka-stream"              % akkaVersion,
+      "ch.qos.logback"    % "logback-classic"           % "1.2.3",
+
+      "org.scalikejdbc" %% "scalikejdbc-test"           % "3.4.+"         % Test,
+      "org.scala-lang" % "scala-compiler"               % "2.12.11",
+      "com.typesafe.akka" %% "akka-http-testkit"        % akkaHttpVersion % Test,
+      "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion     % Test,
+      "org.scalactic" %% "scalactic"                    % "3.2.0",
+      "org.scalatest" %% "scalatest"                    % "3.2.0"         % Test
+    ),
+
     initialCommands in console := """
       import org.apache.spark.sql.SparkSession
       import org.apache.spark.sql.functions._
@@ -31,23 +50,6 @@ lazy val root = (project in file(".")).
 
     cleanupCommands in console := "spark.stop()",
     coverageHighlighting := true,
-
-    libraryDependencies ++= Seq(
-      "com.h2database" % "h2"                           % "1.4.192",
-      "com.typesafe.slick" %% "slick"                   % "3.3.1",
-      "com.typesafe.akka" %% "akka-http"                % akkaHttpVersion,
-      "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
-      "com.typesafe.akka" %% "akka-stream"              % akkaVersion,
-      "ch.qos.logback"    % "logback-classic"           % "1.2.3",
-      
-      "org.apache.spark" %% "spark-sql"                 % sparkVersion % Provided,
-      
-      "org.scala-lang" % "scala-compiler"               % "2.12.11",
-      "com.typesafe.akka" %% "akka-http-testkit"        % akkaHttpVersion % Test,
-      "com.typesafe.akka" %% "akka-actor-testkit-typed" % akkaVersion     % Test,
-      "org.scalactic" %% "scalactic"                    % "3.2.0",
-      "org.scalatest" %% "scalatest"                    % "3.2.0" % Test
-    ),
 
     // uses compile classpath for the run task, including "provided" jar (cf http://stackoverflow.com/a/21803413/3827)
     run in Compile := Defaults.runTask(fullClasspath in Compile, mainClass in (Compile, run), runner in (Compile, run)).evaluated,
