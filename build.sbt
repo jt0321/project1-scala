@@ -22,8 +22,6 @@ lazy val root = (project in file(".")).
       "org.apache.spark" %% "spark-sql"                 % sparkVersion % Provided,
 
       "com.h2database" % "h2"                           % "1.4.192",
-      "org.scalikejdbc" %% "scalikejdbc"                % "3.4.+",
-      "org.scalikejdbc" %% "scalikejdbc-config"         % "3.4.+",
       "com.typesafe.akka" %% "akka-http"                % akkaHttpVersion,
       "com.typesafe.akka" %% "akka-actor-typed"         % akkaVersion,
       "com.typesafe.akka" %% "akka-stream"              % akkaVersion,

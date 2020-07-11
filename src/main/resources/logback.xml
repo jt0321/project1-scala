@@ -1,5 +1,5 @@
 <configuration>
-  <appender name="FILE" target="System.out" class="ch.qos.logback.core.rolling.RollingFileAppender">
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
     <file>logs/log.log</file>
     <immediateFlush>false</immediateFlush>
     <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
@@ -24,7 +24,6 @@
 
 
   <logger name="akka" level="DEBUG"/>
-  <logger name="slick" level="DEBUG"/>
   <logger name="org.apache.spark" level="ERROR"/>
   <logger name="org.spark_project" level="ERROR"/>
 

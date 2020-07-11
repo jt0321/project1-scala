@@ -51,8 +51,8 @@ class SparkServer(context: ActorContext[Nothing]) extends AbstractBehavior[Nothi
 
     implicit val classicSystem: akka.actor.ActorSystem = system.toClassic
     implicit val ec = system.executionContext
-    val bindingFuture = Http().bindAndHandleSync(routes.sparkRoutes, "localhost", 8080)
-    println(s"Server online at http://localhost:8080/\nPress CTRL+C to stop...")
+    val bindingFuture = Http().bindAndHandleSync(routes.sparkRoutes, "localhost", 8888)
+    println(s"Server online at http://localhost:8888/\nPress CTRL+C to stop...")
   }
 
   /** This method makes this class no longer abstract, yay!

@@ -41,7 +41,7 @@ class SparkActor(
   implicit val ec = context.system.executionContext
   implicit val scheduler = context.system.scheduler
 
-  val allCategories = s"Aspects of Crimes! ${csvParser.header.mkString(", ")}\n"
+  val allCategories = s"Aspects of Crimes! ${csvParser.header.mkString(", ")}"
 
   private def tasks(results: Set[Result]): Behavior[Command] =
     Behaviors.receiveMessage {
@@ -59,11 +59,11 @@ class SparkActor(
           Behaviors.same
         } else {
           val countInstance = CsvParser.Count(Option(result.counts))
-          replyTo ! cats.sorted.mkString(" x ") + "\n" + CsvParser.asString(countInstance) + "\n"
+          replyTo ! cats.sorted.mkString(" x ") + "\n" + CsvParser.asString(countInstance)
           tasks(results + result)
         }
       case GetCalculated(replyTo) =>
-        replyTo ! "Performed counts for " + results.map(_.categories).mkString(", ") + "\n"
+        replyTo ! "Performed counts for " + results.map(_.categories).mkString(", ")
         Behaviors.same
       case SaveCounts(replyTo, sqlActor) =>
         val sqlFuture: Future[String] = sqlActor.ask(SaveToDb(_, results))

@@ -24,7 +24,6 @@ class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command], sql
   import SparkActor._
 
   implicit val timeout = akka.util.Timeout.create(java.time.Duration.ofDays(30))
-  //val timeOut = scala.concurrent.duration.Duration("30 s")
   implicit val ec = system.executionContext
   //implicit val scheduler = system.scheduler
 
@@ -43,42 +42,49 @@ class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command], sql
   val sparkRoutes: HttpRequest => HttpResponse = {
     // GET categories
     case HttpRequest(GET, uri, _, _, _) =>
-      uri.path match {
-        case Uri.Path(s) if s == s"${baseUri}/calculated" =>
-          /* val future = getCalculated
-          val result = Await.result(future, timeOut).asInstanceOf[String]
-          HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result")) */
-          sparkResponse(getCalculated)
-        case Uri.Path(baseUri) =>
-          sparkResponse(getAllCategories)
-        case _ => HttpResponse(404, entity = "GET failed: Unknown resource! \n")
-      }
+      if (!uri.path.toString.startsWith(baseUri))
+        HttpResponse(404, entity = "GET failed: Unknown resource! \n")
+      else
+        uri.path match {
+          case Uri.Path(s) if s == s"${baseUri}/calculated" =>
+            sparkResponse(getCalculated)
+          case Uri.Path(s) if s == baseUri =>
+            system.log.info("Uri.Path(baseuri): " + Uri.Path(baseUri))
+            system.log.info("Uri.Path: " + Uri.Path(s))
+            system.log.info("uri.path: " + uri.path)
+            sparkResponse(getAllCategories)
+          case _ =>
+            system.log.info("uri.path: " + uri.path)
+            HttpResponse(404, entity = "GET failed: Unknown resource!\n")
+        }
 
     // POST methods
     case HttpRequest(POST, uri, _, _, _) =>
-      if (uri.query().isEmpty || !uri.path.toString.equals(baseUri))
-        HttpResponse(404, entity = "POST failed: Unknown resource! \n")
+      if (!uri.path.toString.startsWith(baseUri))
+        HttpResponse(404, entity = "POST failed: Unknown resource!\n")
+      else {
+        // spark jobs
+        val counts = if (uri.queryString().getOrElse("").contains("cat")) {
+          uri.query().getAll("cat") match {
+            case List(cat1, cat2) =>
+              val future = calculateCounts(Seq(cat1, cat2))
+              Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
+            case List(cat1) =>
+              val future = calculateCounts(Seq(cat1))
+              Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
+            case Nil =>
+              "No counts requested!"
+          }
+        } else ""
 
-      // save option
-      if (uri.query().getOrElse("save", "false") == "true") {
-        // println("Sending results to be saved... oops, not implemented")
-        system.log.info("Asking saveCounts")
-        val future = saveCounts(sqlActor)
-        val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[ActionPerformed]
-        HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
-      }
-      // spark jobs
-      uri.query().getAll("cat") match {
-        case List(cat1, cat2) =>
-          val future = calculateCounts(Seq(cat1, cat2))
-          val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
-          HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
-        case List(cat1) =>
-          val future = calculateCounts(Seq(cat1))
-          val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
-          HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
-        case Nil =>
-          HttpResponse(404, entity = "No counts requested! \n")
+        // save option
+        val save = if (uri.query().getOrElse("save", "false") == "true") {
+          system.log.info("Asking saveCounts")
+          val future = saveCounts(sqlActor)
+          val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[ActionPerformed]
+          s"${result.description}"
+        } else ""
+        HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$counts\n$save\n"))
       }
 
     // important to drain incoming HTTP Entity stream
@@ -95,7 +101,7 @@ class SparkRoutes(baseUri: String, sparkActor: ActorRef[SparkActor.Command], sql
   def sparkResponse(ask: () => Future[String]): HttpResponse = {
     val future = ask()
     val result = Await.result(future, scala.concurrent.duration.Duration.Inf).asInstanceOf[String]
-    HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result"))
+    HttpResponse(entity = HttpEntity(ContentTypes.`text/html(UTF-8)`, s"$result\n"))
   }
 
   /** What core API methods actually do
